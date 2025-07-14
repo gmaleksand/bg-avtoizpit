@@ -62,14 +62,11 @@ class QuizApp:
         self.certainty_entry = tk.Entry(self.scrollable_frame, textvariable=self.input_certainty, font=self.default_font)
         self.certainty_entry.pack(pady=10)
 
-        self.submit_button = tk.Button(self.scrollable_frame, text="Submit", command=self.check_answer, font=self.default_font)
-        self.submit_button.pack(pady=10)
+        self.action_button = tk.Button(self.scrollable_frame, text="Submit", command=self.check_answer, font=self.default_font)
+        self.action_button.pack(pady=10)
 
         self.result_label = tk.Label(self.scrollable_frame, text="", font=self.default_font)
         self.result_label.pack(pady=10)
-
-        self.next_button = tk.Button(self.scrollable_frame, text="Next Question", command=self.next_question, font=self.default_font)
-        self.next_button.pack(pady=10)
 
         # Pack the canvas and scrollbar
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -105,7 +102,7 @@ class QuizApp:
 
     def next_question(self):
         self.result_label.config(text="")
-        self.submit_button.config(state=tk.NORMAL)
+        self.action_button.config(text="Submit", command=self.check_answer, state=tk.NORMAL)
         if self.video_player:
             self.video_player.close_player()
             self.video_player = None
@@ -218,7 +215,7 @@ class QuizApp:
         return correct_answers
 
     def check_answer(self):
-        self.submit_button.config(state=tk.DISABLED)
+        self.action_button.config(state=tk.DISABLED)
         all_correct = True
         selected_answers_texts = []
         for i, (var, is_correct) in enumerate(self.answer_vars):
@@ -239,13 +236,14 @@ class QuizApp:
 
         self.questions_solved += 1
         print(str(self.questions_solved_correctly) + '/' + str(self.questions_solved))
+        self.action_button.config(text="Next Question", command=self.next_question, state=tk.NORMAL)
 
     def get_correct_answers_display(self):
         return "\n".join(self.get_correct_answers())
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.geometry("1920x1080")
+    root.geometry("960x720")
     app = QuizApp(root)
     root.mainloop()
 
