@@ -2,10 +2,10 @@
 
 Това е [Python](https://www.python.org/downloads/) програма, която задава [въпросите](https://rta.government.bg/bg/archive_p_testovevodachi) от [изпита по теория](https://www.avtoizpit.com/) за управление на МПС категория Б.
 
-За да работи програмата, са необходими библиотеките `pandas`, `openpyxl`, `Pillow`, `opencv-python`, `ffpyplayer`, `requests`. Те се инсталират с командата 
+За да работи програмата, са необходими библиотеките `Pillow`, `opencv-python`, `ffpyplayer`, `requests`. Те се инсталират с командата 
 
 ```bash
-pip install pandas, openpyxl, Pillow, opencv-python, ffpyplayer, requests
+pip install Pillow, opencv-python, ffpyplayer, requests
 ```
 
 Самата програма се стартира с командата
@@ -27,7 +27,7 @@ python quiz.py
 *   `quiz.py`: Основната програма.
 *   `all_questions.xlsx`: Таблица с условията и отговорите на всички въпроси.
 *   `weights.csv`: Файл с тежестите на въпросите.
-*   Директории `img`, `1/`, ... `19/`**: съдържат изображенията към въпросите.
+*   Директории `img`, `1/`, ... `19/`: съдържат изображенията към въпросите.
 
 ## Видео въпроси
 

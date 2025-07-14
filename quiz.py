@@ -1,6 +1,6 @@
 
 
-import pandas as pd
+import json
 import random
 import tkinter as tk
 from tkinter import font
@@ -15,7 +15,8 @@ class QuizApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Driving Quiz")
-        self.questions_df = pd.read_excel("all_questions.xlsx")
+        with open("questions.json", "r") as f:
+            self.questions = json.load(f)
         self.weights_path = "weights.csv"
         self.load_weights()
         self.current_question = None
@@ -80,21 +81,24 @@ class QuizApp:
 
     def load_weights(self):
         if os.path.exists(self.weights_path):
-            self.weights = pd.read_csv(self.weights_path, header=None, dtype=float).squeeze("columns")
-            if len(self.weights) != len(self.questions_df):
-                print(f"Warning: Mismatch between number of weights ({len(self.weights)}) and questions ({len(self.questions_df)}). Recreating weights file.")
+            with open(self.weights_path, 'r') as f:
+                self.weights = [float(line.strip()) for line in f.readlines()]
+            if len(self.weights) != len(self.questions):
+                print(f"Warning: Mismatch between number of weights ({len(self.weights)}) and questions ({len(self.questions)}). Recreating weights file.")
                 self.create_default_weights()
         else:
             print(f"Warning: '{self.weights_path}' not found. Creating a new one with default weights.")
             self.create_default_weights()
 
     def create_default_weights(self):
-        num_questions = len(self.questions_df)
-        self.weights = pd.Series([1.0] * num_questions)
+        num_questions = len(self.questions)
+        self.weights = [1.0] * num_questions
         self.save_weights()
 
     def save_weights(self):
-        self.weights.to_csv(self.weights_path, index=False, header=False)
+        with open(self.weights_path, 'w') as f:
+            for weight in self.weights:
+                f.write(f"{weight}\n")
 
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
@@ -111,20 +115,22 @@ class QuizApp:
         self.answer_vars.clear()
         self.answer_buttons.clear()
 
-        self.current_question = self.questions_df.sample(weights=self.weights).iloc[0]
+        question_index = random.choices(range(len(self.questions)), weights=self.weights, k=1)[0]
+        self.current_question = self.questions[question_index]
+        self.current_question['index'] = question_index
         self.display_question()
 
     def display_question(self):
-        question_text = self.current_question["question"]
-        num_correct = self.current_question["number of correct answers"]
+        question_text = self.current_question["q"]
+        num_correct = self.current_question["correct_answers_count"]
         self.question_label.config(text=f"{question_text}\n(Correct answers: {num_correct})")
 
-        video_url = self.current_question["video-url"]
-        image_path = self.current_question["img-path"]
+        video_url = self.current_question["video"]
+        image_path = self.current_question["img"]
 
-        if pd.notna(video_url):
+        if video_url is not None:
             self.play_video_from_url(video_url)
-        elif pd.notna(image_path) and os.path.exists(image_path):
+        elif image_path is not None and os.path.exists(image_path):
             self.display_image(image_path)
         else:
             self.media_label.config(image="")
@@ -178,9 +184,9 @@ class QuizApp:
         answers = self.get_answers()
         random.shuffle(answers)
 
-        for i, (answer_text, is_correct, original_index) in enumerate(answers):
+        for i, (answer_text, is_correct) in enumerate(answers):
             var = tk.BooleanVar()
-            self.answer_vars.append((var, is_correct, original_index))
+            self.answer_vars.append((var, is_correct))
             if isinstance(answer_text, str) and answer_text.endswith('.png'):
                 if os.path.exists(answer_text):
                     img = Image.open(answer_text)
@@ -200,37 +206,31 @@ class QuizApp:
 
     def get_answers(self):
         answers = []
-        correct_indices = self.get_correct_answers()
-        
-        for i, col in enumerate(['a', 'b', 'c', 'd']):
-            answer_text = self.current_question[col]
-            is_correct = self.current_question[f'{col}_correct'] == 1
-            
-            if pd.notna(answer_text):
-                answers.append((answer_text, is_correct, i + 1))
+        for answer_text, is_correct in self.current_question["answers"].items():
+            answers.append((answer_text, bool(is_correct)))
         return answers
 
     def get_correct_answers(self):
         correct_answers = []
-        for i, col in enumerate(['a', 'b', 'c', 'd']):
-            if self.current_question[f'{col}_correct'] == 1:
-                correct_answers.append(i + 1)
+        for answer_text, is_correct in self.current_question["answers"].items():
+            if is_correct:
+                correct_answers.append(answer_text)
         return correct_answers
 
     def check_answer(self):
         self.submit_button.config(state=tk.DISABLED)
         all_correct = True
-        selected_answers = []
-        for i, (var, is_correct, original_index) in enumerate(self.answer_vars):
+        selected_answers_texts = []
+        for i, (var, is_correct) in enumerate(self.answer_vars):
             if var.get():
-                selected_answers.append(original_index)
+                selected_answers_texts.append(self.answer_buttons[i].cget("text"))
             if var.get() != is_correct:
                 all_correct = False
 
-        if all_correct and len(selected_answers) == len(self.get_correct_answers()):
+        if all_correct and len(selected_answers_texts) == len(self.get_correct_answers()):
             self.result_label.config(text="Correct!", fg="green")
-            question_index = self.current_question.name
-            self.weights.loc[question_index] *= float(self.certainty_entry.get())
+            question_index = self.current_question['index']
+            self.weights[question_index] *= float(self.certainty_entry.get())
             self.save_weights()
             self.questions_solved_correctly += 1
         else:
@@ -241,17 +241,7 @@ class QuizApp:
         print(str(self.questions_solved_correctly) + '/' + str(self.questions_solved))
 
     def get_correct_answers_display(self):
-        correct_answers_text = []
-        answers = self.get_answers()
-        correct_indices = self.get_correct_answers()
-
-        for answer_text, is_correct, original_index in answers:
-            if original_index in correct_indices:
-                if isinstance(answer_text, str) and not answer_text.endswith('.png'):
-                    correct_answers_text.append(answer_text)
-                else:
-                    correct_answers_text.append(f"Answer {original_index} (Image)")
-        return "\n".join(correct_answers_text)
+        return "\n".join(self.get_correct_answers())
 
 if __name__ == "__main__":
     root = tk.Tk()
